@@ -14,16 +14,16 @@ describe('Breadcrumb', () => {
   });
 
   // https://github.com/airbnb/enzyme/issues/875
-  it('warns on non-Breadcrumb.Item children', () => {
+  it('warns on non-Breadcrumb.Item and non-Breadcrumb.Separator children', () => {
     const MyCom = () => <div>foo</div>;
     mount(
       <Breadcrumb>
         <MyCom />
-      </Breadcrumb>
+      </Breadcrumb>,
     );
     expect(errorSpy.mock.calls).toHaveLength(1);
     expect(errorSpy.mock.calls[0][0]).toMatch(
-      'Breadcrumb only accepts Breadcrumb.Item as it\'s children'
+      "Warning: [antd: Breadcrumb] Only accepts Breadcrumb.Item and Breadcrumb.Separator as it's children",
     );
   });
 
@@ -34,7 +34,7 @@ describe('Breadcrumb', () => {
         {null}
         <Breadcrumb.Item>Home</Breadcrumb.Item>
         {undefined}
-      </Breadcrumb>
+      </Breadcrumb>,
     );
     expect(errorSpy).not.toHaveBeenCalled();
     expect(wrapper).toMatchSnapshot();
@@ -47,8 +47,41 @@ describe('Breadcrumb', () => {
         <Breadcrumb.Item />
         <Breadcrumb.Item>xxx</Breadcrumb.Item>
         <Breadcrumb.Item>yyy</Breadcrumb.Item>
-      </Breadcrumb>
+      </Breadcrumb>,
     );
+    expect(wrapper).toMatchSnapshot();
+  });
+
+  it('should render a menu', () => {
+    const routes = [
+      {
+        path: 'index',
+        breadcrumbName: 'home',
+      },
+      {
+        path: 'first',
+        breadcrumbName: 'first',
+        children: [
+          {
+            path: '/general',
+            breadcrumbName: 'General',
+          },
+          {
+            path: '/layout',
+            breadcrumbName: 'Layout',
+          },
+          {
+            path: '/navigation',
+            breadcrumbName: 'Navigation',
+          },
+        ],
+      },
+      {
+        path: 'second',
+        breadcrumbName: 'second',
+      },
+    ];
+    const wrapper = render(<Breadcrumb routes={routes} />);
     expect(wrapper).toMatchSnapshot();
   });
 });

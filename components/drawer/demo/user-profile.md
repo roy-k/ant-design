@@ -11,7 +11,7 @@ title:
 
 ## en-US
 
-Use when you need to quickly preview the outline of the object. Such as list item preview.
+Use Drawer to quickly preview details of an object, such as those in a list.
 
 ```jsx
 import { Drawer, List, Avatar, Divider, Col, Row } from 'antd';
@@ -24,29 +24,27 @@ const pStyle = {
   marginBottom: 16,
 };
 
-const DescriptionItem = ({ title, content }) => {
-  return (
-    <div
+const DescriptionItem = ({ title, content }) => (
+  <div
+    style={{
+      fontSize: 14,
+      lineHeight: '22px',
+      marginBottom: 7,
+      color: 'rgba(0,0,0,0.65)',
+    }}
+  >
+    <p
       style={{
-        fontSize: 14,
-        lineHeight: '22px',
-        marginBottom: 7,
-        color: 'rgba(0,0,0,0.65)',
+        marginRight: 8,
+        display: 'inline-block',
+        color: 'rgba(0,0,0,0.85)',
       }}
     >
-      <p
-        style={{
-          marginRight: 8,
-          display: 'inline-block',
-          color: 'rgba(0,0,0,0.85)',
-        }}
-      >
-        {title}:
-      </p>
-      {content}
-    </div>
-  );
-};
+      {title}:
+    </p>
+    {content}
+  </div>
+);
 
 class App extends React.Component {
   state = { visible: false };
@@ -169,11 +167,11 @@ class App extends React.Component {
             <Col span={24}>
               <DescriptionItem
                 title="Github"
-                content={(
+                content={
                   <a href="http://github.com/ant-design/ant-design/">
                     github.com/ant-design/ant-design/
                   </a>
-                )}
+                }
               />
             </Col>
           </Row>
@@ -185,9 +183,3 @@ class App extends React.Component {
 
 ReactDOM.render(<App />, mountNode);
 ```
-
-<style>
-#_hj_feedback_container{
-  display:none
-}
-</style>

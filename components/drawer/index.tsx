@@ -1,208 +1,273 @@
 import * as React from 'react';
 import RcDrawer from 'rc-drawer';
-import PropTypes from 'prop-types';
-import createReactContext, { Context } from 'create-react-context';
+import createReactContext from '@ant-design/create-react-context';
+import warning from '../_util/warning';
+import classNames from 'classnames';
+import Icon from '../icon';
+import { withConfigConsumer, ConfigConsumerProps } from '../config-provider';
+import { tuple } from '../_util/type';
 
-const DrawerContext: Context<Drawer | null> = createReactContext(null);
+const DrawerContext = createReactContext<Drawer | null>(null);
 
 type EventType =
-  | React.MouseEvent<HTMLDivElement>
-  | React.MouseEvent<HTMLButtonElement>;
+  | React.KeyboardEvent<HTMLDivElement>
+  | React.MouseEvent<HTMLDivElement | HTMLButtonElement>;
 
-type getContainerfunc = () => HTMLElement;
+type getContainerFunc = () => HTMLElement;
 
+const PlacementTypes = tuple('top', 'right', 'bottom', 'left');
+type placementType = (typeof PlacementTypes)[number];
 export interface DrawerProps {
   closable?: boolean;
   destroyOnClose?: boolean;
-  getContainer?: string | HTMLElement | getContainerfunc;
+  getContainer?: string | HTMLElement | getContainerFunc | false;
   maskClosable?: boolean;
   mask?: boolean;
   maskStyle?: React.CSSProperties;
   style?: React.CSSProperties;
+  bodyStyle?: React.CSSProperties;
   title?: React.ReactNode;
   visible?: boolean;
   width?: number | string;
+  height?: number | string;
+  /* deprecated, use className instead */
   wrapClassName?: string;
   zIndex?: number;
   prefixCls?: string;
   push?: boolean;
-  placement?: 'left' | 'right';
+  placement?: placementType;
   onClose?: (e: EventType) => void;
+  afterVisibleChange?: (visible: boolean) => void;
+  className?: string;
+  handler?: React.ReactNode;
+  keyboard?: boolean;
 }
 
 export interface IDrawerState {
   push?: boolean;
 }
 
-export default class Drawer extends React.Component<DrawerProps, IDrawerState> {
-  static propTypes = {
-    closable: PropTypes.bool,
-    destroyOnClose: PropTypes.bool,
-    getContainer: PropTypes.oneOfType([
-      PropTypes.string,
-      PropTypes.object,
-      PropTypes.func,
-      PropTypes.bool,
-    ]),
-    maskClosable: PropTypes.bool,
-    mask: PropTypes.bool,
-    maskStyle: PropTypes.object,
-    style: PropTypes.object,
-    title: PropTypes.node,
-    visible: PropTypes.bool,
-    width: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    wrapClassName: PropTypes.string,
-    zIndex: PropTypes.number,
-    prefixCls: PropTypes.string,
-    placement: PropTypes.string,
-    onClose: PropTypes.func,
-  };
-
+class Drawer extends React.Component<DrawerProps & ConfigConsumerProps, IDrawerState> {
   static defaultProps = {
-    prefixCls: 'ant-drawer',
     width: 256,
+    height: 256,
     closable: true,
-    placement: 'right',
+    placement: 'right' as placementType,
     maskClosable: true,
+    mask: true,
     level: null,
+    keyboard: true,
   };
 
   readonly state = {
     push: false,
   };
 
-  praentDrawer: Drawer;
-  destoryClose: boolean;
+  parentDrawer: Drawer | null;
+
+  destroyClose: boolean;
+
+  public componentDidMount() {
+    // fix: delete drawer in child and re-render, no push started.
+    // <Drawer>{show && <Drawer />}</Drawer>
+    const { visible } = this.props;
+    if (visible && this.parentDrawer) {
+      this.parentDrawer.push();
+    }
+  }
+
   public componentDidUpdate(preProps: DrawerProps) {
-    if (preProps.visible !== this.props.visible && this.praentDrawer) {
-      if (this.props.visible) {
-        this.praentDrawer.push();
+    const { visible } = this.props;
+    if (preProps.visible !== visible && this.parentDrawer) {
+      if (visible) {
+        this.parentDrawer.push();
       } else {
-        this.praentDrawer.pull();
+        this.parentDrawer.pull();
       }
     }
   }
-  close = (e: EventType) => {
-    if (this.props.visible !== undefined) {
-      if (this.props.onClose) {
-        this.props.onClose(e);
-      }
-      return;
+
+  public componentWillUnmount() {
+    // unmount drawer in child, clear push.
+    if (this.parentDrawer) {
+      this.parentDrawer.pull();
+      this.parentDrawer = null;
     }
   }
-  onMaskClick = (e: EventType) => {
-    if (!this.props.maskClosable) {
-      return;
-    }
-    this.close(e);
-  }
+
   push = () => {
     this.setState({
       push: true,
     });
-  }
+  };
+
   pull = () => {
     this.setState({
       push: false,
     });
-  }
-  onDestoryTransitionEnd = () => {
-    const isDestroyOnClose = this.getDestoryOnClose();
+  };
+
+  onDestroyTransitionEnd = () => {
+    const isDestroyOnClose = this.getDestroyOnClose();
     if (!isDestroyOnClose) {
       return;
     }
     if (!this.props.visible) {
-      this.destoryClose = true;
+      this.destroyClose = true;
       this.forceUpdate();
     }
-  }
+  };
 
-  getDestoryOnClose = () => (this.props.destroyOnClose && !this.props.visible);
+  getDestroyOnClose = () => this.props.destroyOnClose && !this.props.visible;
 
-  renderBody = () => {
-    if (this.destoryClose && !this.props.visible) {
+  // get drawer push width or height
+  getPushTransform = (placement?: placementType) => {
+    if (placement === 'left' || placement === 'right') {
+      return `translateX(${placement === 'left' ? 180 : -180}px)`;
+    }
+    if (placement === 'top' || placement === 'bottom') {
+      return `translateY(${placement === 'top' ? 180 : -180}px)`;
+    }
+  };
+
+  getRcDrawerStyle = () => {
+    const { zIndex, placement, style } = this.props;
+    const { push } = this.state;
+    return {
+      zIndex,
+      transform: push ? this.getPushTransform(placement) : undefined,
+      ...style,
+    };
+  };
+
+  renderHeader() {
+    const { title, prefixCls, closable } = this.props;
+    if (!title && !closable) {
       return null;
     }
-    this.destoryClose = false;
-    const { placement } = this.props;
 
-    const containerStyle: React.CSSProperties = placement === 'left'
-      || placement === 'right' ? {
-        overflow: 'auto',
-        height: '100%',
-      } : {};
+    const headerClassName = title ? `${prefixCls}-header` : `${prefixCls}-header-no-title`;
+    return (
+      <div className={headerClassName}>
+        {title && <div className={`${prefixCls}-title`}>{title}</div>}
+        {closable && this.renderCloseIcon()}
+      </div>
+    );
+  }
 
-    const isDestroyOnClose = this.getDestoryOnClose();
+  renderCloseIcon() {
+    const { closable, prefixCls, onClose } = this.props;
+    return (
+      closable && (
+        <button onClick={onClose} aria-label="Close" className={`${prefixCls}-close`}>
+          <Icon type="close" />
+        </button>
+      )
+    );
+  }
+
+  // render drawer body dom
+  renderBody = () => {
+    const { bodyStyle, placement, prefixCls, visible } = this.props;
+    if (this.destroyClose && !visible) {
+      return null;
+    }
+    this.destroyClose = false;
+
+    const containerStyle: React.CSSProperties =
+      placement === 'left' || placement === 'right'
+        ? {
+            overflow: 'auto',
+            height: '100%',
+          }
+        : {};
+
+    const isDestroyOnClose = this.getDestroyOnClose();
+
     if (isDestroyOnClose) {
       // Increase the opacity transition, delete children after closing.
       containerStyle.opacity = 0;
       containerStyle.transition = 'opacity .3s';
-    }
-    const { prefixCls, title, closable } = this.props;
-    let header;
-    if (title) {
-      header = (
-        <div className={`${prefixCls}-header`}>
-          <div className={`${prefixCls}-title`}>{title}</div>
-        </div>
-      );
-    }
-    let closer;
-    if (closable) {
-      closer = (
-        <button
-          onClick={this.close}
-          aria-label="Close"
-          className={`${prefixCls}-close`}
-        >
-          <span className={`${prefixCls}-close-x`} />
-        </button>
-      );
     }
 
     return (
       <div
         className={`${prefixCls}-wrapper-body`}
         style={containerStyle}
-        onTransitionEnd={this.onDestoryTransitionEnd}
+        onTransitionEnd={this.onDestroyTransitionEnd}
       >
-        {header}
-        {closer}
-        <div className={`${prefixCls}-body`} style={this.props.style}>
+        {this.renderHeader()}
+        <div className={`${prefixCls}-body`} style={bodyStyle}>
           {this.props.children}
         </div>
       </div>
     );
-  }
+  };
+
+  // render Provider for Multi-level drawer
   renderProvider = (value: Drawer) => {
-    let { zIndex, style, placement, ...rest } = this.props;
-    const RcDrawerStyle = this.state.push
-      ? {
-        zIndex,
-        transform: `translateX(${placement === 'left' ? 180 : -180}px)`,
-      }
-      : { zIndex };
-    this.praentDrawer = value;
+    const {
+      prefixCls,
+      zIndex,
+      style,
+      placement,
+      className,
+      wrapClassName,
+      width,
+      height,
+      closable,
+      destroyOnClose,
+      mask,
+      bodyStyle,
+      title,
+      push,
+      visible,
+      // ConfigConsumerProps
+      getPopupContainer,
+      rootPrefixCls,
+      getPrefixCls,
+      renderEmpty,
+      csp,
+      autoInsertSpaceInButton,
+      ...rest
+    } = this.props;
+    warning(
+      wrapClassName === undefined,
+      'Drawer',
+      'wrapClassName is deprecated, please use className instead.',
+    );
+    const haveMask = mask ? '' : 'no-mask';
+    this.parentDrawer = value;
+    const offsetStyle: any = {};
+    if (placement === 'left' || placement === 'right') {
+      offsetStyle.width = width;
+    } else {
+      offsetStyle.height = height;
+    }
     return (
       <DrawerContext.Provider value={this}>
         <RcDrawer
-          {...rest}
           handler={false}
+          {...rest}
+          {...offsetStyle}
+          prefixCls={prefixCls}
           open={this.props.visible}
-          onMaskClick={this.onMaskClick}
-          showMask={this.props.mask}
+          showMask={mask}
           placement={placement}
-          style={RcDrawerStyle}
-          className={this.props.wrapClassName}
+          style={this.getRcDrawerStyle()}
+          className={classNames(wrapClassName, className, haveMask)}
         >
           {this.renderBody()}
         </RcDrawer>
       </DrawerContext.Provider>
     );
-  }
+  };
+
   render() {
-    return (
-      <DrawerContext.Consumer>{this.renderProvider}</DrawerContext.Consumer>
-    );
+    return <DrawerContext.Consumer>{this.renderProvider}</DrawerContext.Consumer>;
   }
 }
+
+export default withConfigConsumer<DrawerProps>({
+  prefixCls: 'drawer',
+})(Drawer);
